@@ -4,6 +4,13 @@ var renderer = new THREE.WebGLRenderer();
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
+// update the camera aspect ratio when the window is resized
+window.addEventListener('resize', function () {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
 var objLoader = new THREE.OBJLoader();
 objLoader.load(
   'horse.obj',
@@ -20,8 +27,8 @@ var pointLight = new THREE.PointLight(0xffffff, 1);
 pointLight.position.set(0, 0, 100);
 scene.add(pointLight);
 
-camera.position.z = 2;
-camera.position.y = 0.3;
+camera.position.z = 2; //How close
+camera.position.y = 0.3; //Up and down
 
 var mouseX = 0;
 var mouseY = 0;
@@ -103,3 +110,5 @@ function animate() {
 }
 
 animate();
+
+
