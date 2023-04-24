@@ -12,13 +12,61 @@ window.addEventListener('resize', function () {
 });
 
 var objLoader = new THREE.OBJLoader();
+var houseMesh;
+
 objLoader.load(
-  'horse.obj',
+  'house.obj',
   function (object) {
-    object.scale.set(0.05, 0.05, 0.05); // adjust the scale factor as needed
+    object.scale.set(0.05, 0.05, 0.05);
     scene.add(object);
+    houseMesh = object.children[0]; // assuming the house is the first child object
   }
 );
+
+var raycaster = new THREE.Raycaster();
+var cameraCollisionDistance = 0.2; // distance to keep the camera from the collision point
+var isColliding = false; // flag for collision detection
+
+// check for collision on every frame update
+function update() {
+  requestAnimationFrame(update);
+
+  if (houseMesh) {
+    // get the camera position and direction
+    var camPos = camera.position;
+    var camDir = camera.getWorldDirection(new THREE.Vector3());
+
+    // set the raycaster with the camera position and direction
+    raycaster.set(camPos, camDir);
+
+    // check for intersection between the ray and the house object
+    var intersects = raycaster.intersectObject(houseMesh, true);
+
+    if (intersects.length > 0 && intersects[0].distance < cameraCollisionDistance) {
+      // if there's an intersection and it's within the collision distance, move the camera back
+      var collisionPoint = intersects[0].point;
+      camera.position.copy(collisionPoint.sub(camDir.multiplyScalar(cameraCollisionDistance)));
+
+      // set camera's y-position to a fixed value
+      camera.position.y = 0.3;
+
+      // prevent camera from going upwards
+      if (camDir.y > 0) {
+        cameraVelocity.y = 0;
+      }
+
+      isColliding = true;
+    } else {
+      isColliding = false;
+    }
+  }
+
+  renderer.render(scene, camera);
+}
+
+update();
+
+
 
 var ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
 scene.add(ambientLight);
@@ -30,6 +78,10 @@ scene.add(pointLight);
 camera.position.z = 2; //How close
 camera.position.y = 0.3; //Up and down
 
+
+var mouseLocked = false;
+var prevMouseX = 0;
+var prevMouseY = 0;
 var mouseX = 0;
 var mouseY = 0;
 var moveForward = false;
@@ -103,12 +155,48 @@ function animate() {
   }
 
   // rotate the camera based on mouse position
-  camera.rotation.y = mouseX * Math.PI;
-  camera.rotation.x = mouseY * Math.PI / 2;
+  
 
   renderer.render(scene, camera);
 }
 
 animate();
 
+function lockPointer() {
+  var pointerLockElement = document.getElementById('pointer-lock');
 
+  pointerLockElement.addEventListener('click', function() {
+    pointerLockElement.requestPointerLock = pointerLockElement.requestPointerLock || pointerLockElement.mozRequestPointerLock || pointerLockElement.webkitRequestPointerLock;
+    pointerLockElement.requestPointerLock();
+  }, false);
+
+  document.addEventListener('pointerlockchange', onPointerLockChange, false);
+  document.addEventListener('mozpointerlockchange', onPointerLockChange, false);
+  document.addEventListener('webkitpointerlockchange', onPointerLockChange, false);
+
+  function onPointerLockChange() {
+    if (document.pointerLockElement === pointerLockElement || document.mozPointerLockElement === pointerLockElement || document.webkitPointerLockElement === pointerLockElement) {
+      document.addEventListener('mousemove', onMouseMove, false);
+      mouseLocked = true;
+    } else {
+      document.removeEventListener('mousemove', onMouseMove, false);
+      mouseLocked = false;
+    }
+  }
+
+  function onMouseMove(event) {
+    var movementX = event.movementX || event.mozMovementX || event.webkitMovementX || 0;
+    var movementY = event.movementY || event.mozMovementY || event.webkitMovementY || 0;
+
+    if (mouseLocked) {
+      camera.rotation.y -= movementX * 0.001;
+      camera.rotation.x -= movementY * 0.001;
+      camera.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, camera.rotation.x));
+    }
+
+    prevMouseX = event.clientX;
+    prevMouseY = event.clientY;
+  }
+}
+
+lockPointer ();
