@@ -24,9 +24,12 @@ objLoader.load(
 );
 
 var raycaster = new THREE.Raycaster();
-var cameraCollisionDistance = 0.18; // distance to keep the camera from the collision point
+var cameraCollisionDistance = 0.3; // distance to keep the camera from the collision point
 var isColliding = false; // flag for collision detection
 var lastCollisionPoint = null; // variable to store the last collision point
+var maxCameraDistance = 5; // maximum distance of the camera from the house
+var backwardColliderDistance = 0.3; // distance to keep the camera from the collision point when moving backwards
+var isMovingBackward = false; // flag for backward movement
 
 // new camera position
 var initialCameraPosition = new THREE.Vector3();
@@ -58,17 +61,26 @@ function update() {
       var distanceToCollisionPoint = camPos.distanceTo(collisionPoint);
       if (distanceToCollisionPoint > distanceToIntersection) {
         // if intersection point is behind the camera, set camera position just in front of the intersection point
-        collisionPoint = intersects[0].point.clone().sub(camDir.multiplyScalar(cameraCollisionDistance));
+        collisionPoint = intersects[0].point.clone().sub(camDir.multiplyScalar(backwardColliderDistance));
+        isMovingBackward = true;
       } else {
         // if intersection point is in front of the camera, set camera position just behind the intersection point
         collisionPoint = intersects[0].point.clone().add(camDir.multiplyScalar(cameraCollisionDistance));
+        isMovingBackward = false;
       }
 
       // check if the new position is not behind the initial position
-      if (collisionPoint.z > initialCameraPosition.z) {
-        camera.position.copy(collisionPoint);
-        lastCollisionPoint = collisionPoint; // update the last collision point variable
-        initialCameraPosition.copy(lastCollisionPoint); // update initialCameraPosition
+      if (collisionPoint.z > initialCameraPosition.z && collisionPoint.x > initialCameraPosition.x) {
+        // limit camera distance to the house
+        var distanceToHouse = collisionPoint.distanceTo(new THREE.Vector3(0, collisionPoint.y, 0));
+        if (distanceToHouse <= maxCameraDistance) {
+          camera.position.copy(collisionPoint);
+          lastCollisionPoint = collisionPoint; // update the last collision point variable
+          initialCameraPosition.copy(lastCollisionPoint); // update initialCameraPosition
+        } else {
+          camera.position.copy(initialCameraPosition);
+          isColliding = true;
+        }
       } else {
         camera.position.copy(initialCameraPosition);
         isColliding = true;
@@ -79,13 +91,15 @@ function update() {
     } else {
       isColliding = false;
       initialCameraPosition.copy(camera.position);
+      isMovingBackward = false;
     }
   }
 
   renderer.render(scene, camera);
 }
-
 update();
+
+
 
 
 
@@ -114,6 +128,24 @@ function onMouseMove(event) {
   mouseX = (event.clientX / window.innerWidth) * 2 - 1;
   mouseY = -(event.clientY / window.innerHeight) * 2 + 1;
 }
+
+function onMouseDown(event) {
+  if (event.button === 0) {
+    mouseLocked = true;
+    prevMouseX = event.clientX;
+    prevMouseY = event.clientY;
+  }
+}
+
+function onMouseUp(event) {
+  if (event.button === 0) {
+    mouseLocked = false;
+  }
+}
+
+document.addEventListener('mousedown', onMouseDown, false);
+document.addEventListener('mouseup', onMouseUp, false);
+
 
 document.addEventListener('mousemove', onMouseMove, false);
 
@@ -157,23 +189,29 @@ document.addEventListener('keyup', onKeyUp, false);
 function animate() {
   requestAnimationFrame(animate);
 
+  // calculate the movement direction based on the camera's rotation
+  var moveDirection = new THREE.Vector3();
+  camera.getWorldDirection(moveDirection);
+  moveDirection.normalize();
+
   // move the camera based on WASD keys
   if (moveForward) {
-    camera.position.x -= Math.sin(camera.rotation.y) * 0.01;
-    camera.position.z -= Math.cos(camera.rotation.y) * 0.01;
+    camera.position.add(moveDirection.multiplyScalar(0.01));
   }
   if (moveBackward) {
-    camera.position.x += Math.sin(camera.rotation.y) * 0.01;
-    camera.position.z += Math.cos(camera.rotation.y) * 0.01;
+    camera.position.add(moveDirection.multiplyScalar(-0.01));
   }
   if (moveRight) {
-    camera.position.x += Math.sin(camera.rotation.y + Math.PI / 2) * 0.01;
-    camera.position.z += Math.cos(camera.rotation.y + Math.PI / 2) * 0.01;
+    camera.position.add(moveDirection.crossVectors(moveDirection, camera.up).normalize().multiplyScalar(0.01));
   }
   if (moveLeft) {
-    camera.position.x += Math.sin(camera.rotation.y - Math.PI / 2) * 0.01;
-    camera.position.z += Math.cos(camera.rotation.y - Math.PI / 2) * 0.01;
+    camera.position.add(moveDirection.crossVectors(camera.up, moveDirection).normalize().multiplyScalar(0.01));
   }
+  
+
+  
+  
+
 
   // rotate the camera based on mouse position
   
@@ -206,17 +244,28 @@ function lockPointer() {
   }
 
   function onMouseMove(event) {
-    var movementX = event.movementX || event.mozMovementX || event.webkitMovementX || 0;
-    var movementY = event.movementY || event.mozMovementY || event.webkitMovementY || 0;
-
     if (mouseLocked) {
-      camera.rotation.y -= movementX * 0.001;
-      camera.rotation.x -= movementY * 0.001;
+      var movementX = event.movementX || event.mozMovementX || event.webkitMovementX || 0;
+      var movementY = event.movementY || event.mozMovementY || event.webkitMovementY || 0;
+  
+      
+      camera.rotation.x -= movementY * 0.002;
+  
+      // limit the camera's vertical rotation to prevent it from flipping over
+      camera.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, camera.rotation.x));
     }
+  }  
+  // Add event listener for mousemove event
+document.addEventListener('mousemove', onMouseMove, false);
 
-    prevMouseX = event.clientX;
-    prevMouseY = event.clientY;
-  }
+// Function to handle mousemove events
+function onMouseMove(event) {
+  var rotationSpeed = 0.002; // speed of camera rotation based on mouse movement
+  var deltaX = event.movementX; // horizontal movement of the mouse
+  var rotationAngle = -rotationSpeed * deltaX; // angle to rotate the camera right or left (notice the negative sign)
+
+  camera.rotateY(rotationAngle);
+}
 }
 
 lockPointer ();
