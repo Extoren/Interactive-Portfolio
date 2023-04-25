@@ -24,8 +24,12 @@ objLoader.load(
 );
 
 var raycaster = new THREE.Raycaster();
-var cameraCollisionDistance = 0.2; // distance to keep the camera from the collision point
+var cameraCollisionDistance = 0.18; // distance to keep the camera from the collision point
 var isColliding = false; // flag for collision detection
+var lastCollisionPoint = null; // variable to store the last collision point
+
+// new camera position
+var initialCameraPosition = new THREE.Vector3();
 
 // check for collision on every frame update
 function update() {
@@ -45,19 +49,36 @@ function update() {
     if (intersects.length > 0 && intersects[0].distance < cameraCollisionDistance) {
       // if there's an intersection and it's within the collision distance, move the camera back
       var collisionPoint = intersects[0].point;
-      camera.position.copy(collisionPoint.sub(camDir.multiplyScalar(cameraCollisionDistance)));
+      var moveDirection = camDir.clone().negate(); // negate the camera direction to move backwards
+      moveDirection.y = 0; // set y-direction to 0 to prevent upward movement
+      collisionPoint.add(moveDirection.multiplyScalar(cameraCollisionDistance));
+
+      // check if intersection point is behind the camera
+      var distanceToIntersection = camPos.distanceTo(intersects[0].point);
+      var distanceToCollisionPoint = camPos.distanceTo(collisionPoint);
+      if (distanceToCollisionPoint > distanceToIntersection) {
+        // if intersection point is behind the camera, set camera position just in front of the intersection point
+        collisionPoint = intersects[0].point.clone().sub(camDir.multiplyScalar(cameraCollisionDistance));
+      } else {
+        // if intersection point is in front of the camera, set camera position just behind the intersection point
+        collisionPoint = intersects[0].point.clone().add(camDir.multiplyScalar(cameraCollisionDistance));
+      }
+
+      // check if the new position is not behind the initial position
+      if (collisionPoint.z > initialCameraPosition.z) {
+        camera.position.copy(collisionPoint);
+        lastCollisionPoint = collisionPoint; // update the last collision point variable
+        initialCameraPosition.copy(lastCollisionPoint); // update initialCameraPosition
+      } else {
+        camera.position.copy(initialCameraPosition);
+        isColliding = true;
+      }
 
       // set camera's y-position to a fixed value
       camera.position.y = 0.3;
-
-      // prevent camera from going upwards
-      if (camDir.y > 0) {
-        cameraVelocity.y = 0;
-      }
-
-      isColliding = true;
     } else {
       isColliding = false;
+      initialCameraPosition.copy(camera.position);
     }
   }
 
@@ -191,7 +212,6 @@ function lockPointer() {
     if (mouseLocked) {
       camera.rotation.y -= movementX * 0.001;
       camera.rotation.x -= movementY * 0.001;
-      camera.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, camera.rotation.x));
     }
 
     prevMouseX = event.clientX;

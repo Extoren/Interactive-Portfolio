@@ -15,4 +15,3 @@ window.addEventListener("load", function () {
       content.style.display = "block";
     }, 5000);
   });
-  
